@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>こえバトル</title>
+<style>
+:root{--bg:#14102e;--card:#241d52;--fg:#fff;--mut:#b8b0e8;--c1:#ff6b8b;--c2:#4dc3ff;--c3:#ffd23f}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#3a2c86,var(--bg) 60%);color:var(--fg);font-family:"Hiragino Maru Gothic ProN","Meiryo",sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{margin:8px 0 2px;font-size:clamp(28px,5vw,44px);letter-spacing:.05em}
+.sub{color:var(--mut);margin:0 0 14px;text-align:center}
+main{width:100%;max-width:980px}
+.panel{background:var(--card);border-radius:20px;padding:18px;margin-bottom:16px}
+.classes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cbtn{border:4px solid transparent;border-radius:18px;padding:18px 6px;font-size:clamp(18px,3.4vw,28px);font-weight:bold;color:#fff;cursor:pointer;font-family:inherit;opacity:.65}
+.cbtn.sel{opacity:1;border-color:#fff;transform:scale(1.04)}
+.cbtn small{display:block;font-size:.55em;font-weight:normal;margin-top:4px}
+.k0{background:var(--c1)}.k1{background:var(--c2)}.k2{background:var(--c3);color:#3a2c00}
+#stage{text-align:center}
+#big{font-size:clamp(48px,14vw,120px);font-weight:bold;min-height:1.2em;line-height:1.2}
+#msg{color:var(--mut);min-height:1.5em}
+.meter{height:34px;background:#0006;border-radius:17px;overflow:hidden;margin:10px 0}
+#mfill{height:100%;width:0;background:linear-gradient(90deg,#4dc3ff,#5dff8a,#ffd23f,#ff6b8b);transition:width .06s}
+.go{border:0;border-radius:40px;padding:16px 44px;font-size:clamp(22px,4vw,32px);font-weight:bold;background:#5dff8a;color:#06331a;cursor:pointer;font-family:inherit}
+.go:disabled{opacity:.4}
+.row{display:flex;align-items:center;gap:10px;margin:10px 0}
+.row .nm{width:6.5em;font-weight:bold}
+.bar{flex:1;height:40px;background:#0005;border-radius:10px;overflow:hidden}
+.bar>div{height:100%;width:0;transition:width .8s;border-radius:10px}
+.row .v{width:5.2em;text-align:right;font-weight:bold;font-size:1.2em}
+table{width:100%;border-collapse:collapse}
+td,th{padding:6px 8px;text-align:left;border-bottom:1px solid #fff2}
+button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10px;cursor:pointer;font-family:inherit}
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.hint{color:var(--mut);font-size:.85em}
+</style>
+</head>
+<body>
+<h1>🎤 こえバトル</h1>
+<p class="sub">クラスをえらんで、5びょうかん こえを だそう！ クラスの へいきんで しょうぶ！</p>
+<main>
+ <div class="panel"><div class="classes" id="classes"></div></div>
+ <div class="panel" id="stage">
+  <div id="big">🎤</div>
+  <div class="meter"><div id="mfill"></div></div>
+  <div id="msg">クラスを えらんで「スタート」を おしてね</div>
+  <p><button class="go" id="go">スタート</button></p>
+  <p class="hint">マイクの きょかを きかれたら「きょか」を おしてね。（かくにん用：スペースキーを おしている間は こえが でていることになります）</p>
+ </div>
+ <div class="panel">
+  <h2 style="margin-top:0">🏆 クラス へいきん</h2>
+  <div id="rank"></div>
+ </div>
+ <div class="panel">
+  <h2 style="margin-top:0">きろく</h2>
+  <div id="log"></div>
+  <div class="tools"><button class="sm" id="undo">1つ もどす</button><button class="sm" id="clrCls">このクラスの きろくを けす</button></div>
+  <p class="hint">きろくは この パソコン（ブラウザ）の中に ほぞんされます。</p>
+ </div>
+</main>
+<script>
+const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
+const KEY='koebattle.v1',REC_SEC=5,DB_MIN=-60,DB_MAX=-15;
+const $=s=>document.querySelector(s);
+let sel=0,busy=false,demo=false;
+let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!data||!Array.isArray(data.r))data={r:[]}; // r:[{c:クラス番号,s:てん,t:時刻}]
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}};
+
+function renderClasses(){
+  $('#classes').innerHTML=CLASSES.map((c,i)=>{
+    const n=data.r.filter(x=>x.c===i).length;
+    return `<button class="cbtn ${c.k} ${i===sel?'sel':''}" data-i="${i}">${c.n}<small>${n}にん きろく</small></button>`}).join('');
+  document.querySelectorAll('.cbtn').forEach(b=>b.onclick=()=>{if(busy)return;sel=+b.dataset.i;renderClasses();$('#msg').textContent=CLASSES[sel].n+' を えらびました'});
+}
+function avg(i){const a=data.r.filter(x=>x.c===i);return a.length?a.reduce((s,x)=>s+x.s,0)/a.length:null}
+function renderRank(){
+  const av=CLASSES.map((_,i)=>avg(i));
+  const best=Math.max(...av.map(v=>v==null?-1:v));
+  $('#rank').innerHTML=CLASSES.map((c,i)=>{
+    const v=av[i];
+    return `<div class="row"><div class="nm">${v!=null&&v===best?'👑':''}${c.n}</div>
+    <div class="bar"><div style="width:${v==null?0:v}%;background:${c.c}"></div></div>
+    <div class="v">${v==null?'―':v.toFixed(1)}</div></div>`}).join('');
+}
+function renderLog(){
+  const rows=data.r.map((x,i)=>({...x,i})).reverse().slice(0,30);
+  $('#log').innerHTML=rows.length?`<table><tr><th>クラス</th><th>てん</th><th></th></tr>`+rows.map(x=>
+    `<tr><td>${CLASSES[x.c].n}</td><td>${x.s.toFixed(1)}</td><td><button class="sm" data-d="${x.i}">けす</button></td></tr>`).join('')+'</table>':'<p class="hint">まだ きろくが ありません</p>';
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{data.r.splice(+b.dataset.d,1);save();renderAll()});
+}
+function renderAll(){renderClasses();renderRank();renderLog()}
+
+// ---- audio ----
+const A={ctx:null,an:null,buf:null,ready:false};
+async function initMic(){
+  if(A.ready){if(A.ctx.state==='suspended')await A.ctx.resume();return true}
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    A.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=A.ctx.createMediaStreamSource(st);
+    A.an=A.ctx.createAnalyser();A.an.fftSize=2048;src.connect(A.an);
+    A.buf=new Float32Array(A.an.fftSize);A.ready=true;return true;
+  }catch(e){console.warn(e);return false}
+}
+// いまの こえの大きさを 0〜100 に
+function level(){
+  if(demo)return 62+Math.random()*10;
+  if(!A.ready)return 0;
+  A.an.getFloatTimeDomainData(A.buf);
+  let s=0;for(const v of A.buf)s+=v*v;
+  const db=10*Math.log10(s/A.buf.length+1e-12);
+  return Math.max(0,Math.min(100,(db-DB_MIN)/(DB_MAX-DB_MIN)*100));
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let live=0;
+(function loop(){
+  if(!busy){live+=(level()-live)*.3;$('#mfill').style.width=live+'%'}
+  requestAnimationFrame(loop);
+})();
+
+async function run(){
+  if(busy)return;
+  if(!(await initMic())){$('#msg').textContent='マイクが つかえません。ブラウザの マイクの きょかを たしかめてね';return}
+  busy=true;$('#go').disabled=true;
+  for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　じゅんびして…';await sleep(800)}
+  $('#msg').textContent='こえを だして！！';
+  const t0=performance.now();let sum=0,cnt=0;
+  while(performance.now()-t0<REC_SEC*1000){
+    const l=level();sum+=l;cnt++;$('#mfill').style.width=l+'%';
+    $('#big').textContent=Math.ceil(REC_SEC-(performance.now()-t0)/1000);
+    await sleep(33);
+  }
+  const score=cnt?sum/cnt:0;
+  data.r.push({c:sel,s:score,t:Date.now()});save();
+  $('#big').textContent=score.toFixed(1)+'てん';
+  $('#msg').textContent=CLASSES[sel].n+'：きろくしました！ つぎの 人、どうぞ';
+  busy=false;$('#go').disabled=false;renderAll();
+}
+$('#go').onclick=run;
+$('#undo').onclick=()=>{if(busy)return;data.r.pop();save();renderAll()};
+$('#clrCls').onclick=()=>{if(busy)return;if(confirm(CLASSES[sel].n+'の きろくを ぜんぶ けしますか？')){data.r=data.r.filter(x=>x.c!==sel);save();renderAll()}};
+addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){demo=true;e.preventDefault()}});
+addEventListener('keyup',e=>{if(e.code==='Space')demo=false});
+renderAll();
+</script>
+</body>
+</html>
