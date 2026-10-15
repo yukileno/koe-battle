@@ -62,7 +62,7 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const SENS_MAX=15,RANGE_DB=30,MARGIN_DB=4,KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
+const SENS_MAX=15,REF_AMP=0.15,MARGIN_DB=4,KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
 let sens=7,gateDb=-50;try{const g=localStorage.getItem('koebattle.sens');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
 const ORB_PT=10; // ORB_PT: たま1こ＝10てん
 const $=s=>document.querySelector(s);
@@ -111,7 +111,9 @@ function level(){
   if(demo)return 62+Math.random()*10;
   if(!A.ready)return 0;
   // まわりの おとより MARGIN_DB 大きい ぶんだけ ひろう
-  return Math.max(0,Math.min(100,(dbNow()-gateDb)/RANGE_DB*100*mult()));
+  // 音の大きさ（ふくらみ）に ひれいさせる：声が2ばいなら 点も ほぼ2ばい（上げんなし）
+  const a=Math.pow(10,dbNow()/20)-Math.pow(10,gateDb/20);
+  return Math.max(0,a/REF_AMP*100*mult());
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let live=0,cur=0,pts=0,orbs=[],orbAcc=0,orbOn=false;
@@ -125,7 +127,7 @@ function fit(){const d=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRec
 addEventListener('resize',fit);fit();
 function draw(now){
   const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
-  const l=cur/100,cx=W/2,cy=H/2,maxR=Math.hypot(W,H)/2;
+  const l=Math.min(1,cur/100),cx=W/2,cy=H/2,maxR=Math.hypot(W,H)/2;
   hue=(hue+dt*(40+l*200))%360;
   g.globalCompositeOperation='source-over';
   g.fillStyle='rgba(11,8,32,'+(.25+.3*(1-l))+')';g.fillRect(0,0,W,H);
