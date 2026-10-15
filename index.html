@@ -62,8 +62,9 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const SENS_MAX=15,REF_AMP=0.15,MARGIN_DB=4,KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
-let sens=7,gateDb=-50;try{const g=localStorage.getItem('koebattle.sens');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
+const SENS_MAX=15,REF_AMP=0.15,GATE_DB=-45, // これより小さい おとは 0てん（絶対のしきい値）
+  KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
+let sens=7;try{const g=localStorage.getItem('koebattle.sens');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
 const ORB_PT=10; // ORB_PT: たま1こ＝10てん
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
@@ -110,9 +111,8 @@ const mult=()=>0.25*Math.pow(1.25,sens-1);
 function level(){
   if(demo)return 62+Math.random()*10;
   if(!A.ready)return 0;
-  // まわりの おとより MARGIN_DB 大きい ぶんだけ ひろう
   // 音の大きさ（ふくらみ）に ひれいさせる：声が2ばいなら 点も ほぼ2ばい（上げんなし）
-  const a=Math.pow(10,dbNow()/20)-Math.pow(10,gateDb/20);
+  const a=Math.pow(10,dbNow()/20)-Math.pow(10,GATE_DB/20);
   return Math.max(0,a/REF_AMP*100*mult());
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -166,11 +166,7 @@ async function run(){
   if(busy)return;
   if(!(await initMic())){$('#msg').textContent='マイクが つかえません。ブラウザの マイクの きょかを たしかめてね';return}
   busy=true;$('#go').disabled=true;stopReq=false;
-  // まわりの おとを はかる（この間は しずかに）
-  let amb=-90;
-  for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　しずかに… まわりの おとを はかっています';
-    for(let k=0;k<24;k++){if(!demo)amb=Math.max(amb,dbNow());await sleep(33)}}
-  if(!demo)gateDb=Math.max(-70,amb)+MARGIN_DB;
+  for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　じゅんびして…';await sleep(800)}
   $('#msg').textContent='こえを だして！！ おわったら「ストップ」';
   $('#go').textContent='ストップ';$('#go').style.background='#ff6b8b';$('#go').disabled=false;
   const t0=performance.now();let tp=t0,total=0;orbs=[];orbAcc=0;pts=0;orbOn=true;
