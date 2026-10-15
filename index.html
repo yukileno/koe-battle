@@ -38,7 +38,7 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 </head>
 <body>
 <h1>🎤 こえバトル</h1>
-<p class="sub">クラスをえらんで、5びょうかん こえを だそう！ クラスの へいきんで しょうぶ！</p>
+<p class="sub">クラスをえらんで、こえを だそう！ ストップを おすまで はかります。 クラスの へいきんで しょうぶ！</p>
 <main>
  <div class="panel"><div class="classes" id="classes"></div></div>
  <div class="panel" id="stage">
@@ -61,7 +61,8 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 </main>
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
-const KEY='koebattle.v1',REC_SEC=5,DB_MIN=-60,DB_MAX=-15;
+let stopReq=false;
+const KEY='koebattle.v1',DB_MIN=-60,DB_MAX=-15;
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
 let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -123,22 +124,24 @@ let live=0;
 async function run(){
   if(busy)return;
   if(!(await initMic())){$('#msg').textContent='マイクが つかえません。ブラウザの マイクの きょかを たしかめてね';return}
-  busy=true;$('#go').disabled=true;
+  busy=true;$('#go').disabled=true;stopReq=false;
   for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　じゅんびして…';await sleep(800)}
-  $('#msg').textContent='こえを だして！！';
+  $('#msg').textContent='こえを だして！！ おわったら「ストップ」';
+  $('#go').textContent='ストップ';$('#go').style.background='#ff6b8b';$('#go').disabled=false;
   const t0=performance.now();let sum=0,cnt=0;
-  while(performance.now()-t0<REC_SEC*1000){
+  while(!stopReq){
     const l=level();sum+=l;cnt++;$('#mfill').style.width=l+'%';
-    $('#big').textContent=Math.ceil(REC_SEC-(performance.now()-t0)/1000);
+    $('#big').textContent=((performance.now()-t0)/1000).toFixed(1)+'びょう';
     await sleep(33);
   }
+  $('#go').textContent='スタート';$('#go').style.background='';
   const score=cnt?sum/cnt:0;
   data.r.push({c:sel,s:score,t:Date.now()});save();
   $('#big').textContent=score.toFixed(1)+'てん';
   $('#msg').textContent=CLASSES[sel].n+'：きろくしました！ つぎの 人、どうぞ';
-  busy=false;$('#go').disabled=false;renderAll();
+  busy=false;renderAll();
 }
-$('#go').onclick=run;
+$('#go').onclick=()=>{if(busy)stopReq=true;else run()};
 $('#undo').onclick=()=>{if(busy)return;data.r.pop();save();renderAll()};
 $('#clrCls').onclick=()=>{if(busy)return;if(confirm(CLASSES[sel].n+'の きろくを ぜんぶ けしますか？')){data.r=data.r.filter(x=>x.c!==sel);save();renderAll()}};
 addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){demo=true;e.preventDefault()}});
