@@ -42,7 +42,7 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 </head>
 <body>
 <h1>🎤 こえバトル</h1>
-<p class="sub">クラスをえらんで、こえを だそう！ ストップを おすまで はかります。 クラスの へいきんで しょうぶ！</p>
+<p class="sub">クラスをえらんで、こえを だそう！ ストップを おすまで はかります。 クラスの さいこうきろくで しょうぶ！</p>
 <main>
  <div class="panel"><div class="classes" id="classes"></div></div>
  <div class="panel" id="stage">
@@ -53,37 +53,31 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
   <p class="hint">マイクの きょかを きかれたら「きょか」を おしてね。（かくにん用：スペースキーを おしている間は こえが でていることになります）</p>
  </div>
  <div class="panel">
-  <h2 style="margin-top:0">🏆 クラス へいきん</h2>
+  <h2 style="margin-top:0">🏆 クラス さいこうきろく</h2>
   <div id="rank"></div>
  </div>
- <div class="panel">
-  <h2 style="margin-top:0">きろく</h2>
-  <div id="log"></div>
-  <div class="tools"><button class="sm" id="undo">1つ もどす</button><button class="sm" id="clrCls">このクラスの きろくを けす</button></div>
-  <p class="hint">きろくは この パソコン（ブラウザ）の中に ほぞんされます。</p>
- </div>
+ <div class="tools"><button class="sm" id="clrCls">このクラスの きろくを けす</button></div>
+  <p class="hint">さいこうきろくだけ、この パソコン（ブラウザ）の中に ほぞんされます。</p>
 </main>
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const KEY='koebattle.v2',DB_MIN=-60,DB_MAX=-15;
+const KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
 let gain=9;try{const g=+localStorage.getItem('koebattle.gain');if(localStorage.getItem('koebattle.gain')!==null&&isFinite(g))gain=g}catch(e){}
 const GAIN_MAX=30,ORB_PT=10; // ORB_PT: たま1こ＝10てん
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
 let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-if(!data||!Array.isArray(data.r))data={r:[]}; // r:[{c:クラス番号,s:てん,t:時刻}]
+if(!data||!Array.isArray(data.b)||data.b.length!==3)data={b:[0,0,0]}; // b:クラスごとのさいこうてん
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}};
 
 function renderClasses(){
   $('#classes').innerHTML=CLASSES.map((c,i)=>{
-    const n=data.r.filter(x=>x.c===i).length;
-    return `<button class="cbtn ${c.k} ${i===sel?'sel':''}" data-i="${i}">${c.n}<small>${n}にん きろく</small></button>`}).join('');
+        return `<button class="cbtn ${c.k} ${i===sel?'sel':''}" data-i="${i}">${c.n}<small>${data.b[i]?'さいこう '+data.b[i]+'てん':'きろくなし'}</small></button>`}).join('');
   document.querySelectorAll('.cbtn').forEach(b=>b.onclick=()=>{if(busy)return;sel=+b.dataset.i;renderClasses();$('#msg').textContent=CLASSES[sel].n+' を えらびました'});
 }
-function avg(i){const a=data.r.filter(x=>x.c===i);return a.length?a.reduce((s,x)=>s+x.s,0)/a.length:null}
 function renderRank(){
-  const av=CLASSES.map((_,i)=>avg(i));
+  const av=data.b.map(v=>v||null);
   const best=Math.max(...av.map(v=>v==null?-1:v)),top=Math.max(1,best);
   $('#rank').innerHTML=CLASSES.map((c,i)=>{
     const v=av[i];
@@ -91,13 +85,7 @@ function renderRank(){
     <div class="bar"><div style="width:${v==null?0:v/top*100}%;background:${c.c}"></div></div>
     <div class="v">${v==null?'―':Math.round(v)}</div></div>`}).join('');
 }
-function renderLog(){
-  const rows=data.r.map((x,i)=>({...x,i})).reverse().slice(0,30);
-  $('#log').innerHTML=rows.length?`<table><tr><th>クラス</th><th>てん</th><th></th></tr>`+rows.map(x=>
-    `<tr><td>${CLASSES[x.c].n}</td><td>${Math.round(x.s)}</td><td><button class="sm" data-d="${x.i}">けす</button></td></tr>`).join('')+'</table>':'<p class="hint">まだ きろくが ありません</p>';
-  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{data.r.splice(+b.dataset.d,1);save();renderAll()});
-}
-function renderAll(){renderClasses();renderRank();renderLog()}
+function renderAll(){renderClasses();renderRank()}
 
 // ---- audio ----
 const A={ctx:null,an:null,buf:null,ready:false};
@@ -183,14 +171,13 @@ async function run(){
   }
   $('#go').textContent='スタート';$('#go').style.background='';
   orbOn=false;const score=Math.round(total);
-  data.r.push({c:sel,s:score,t:Date.now()});save();
+  const rec=score>data.b[sel];if(rec){data.b[sel]=score;save()}
   $('#big').textContent=score+'てん';
-  $('#msg').textContent=CLASSES[sel].n+'：きろくしました！ つぎの 人、どうぞ';
+  $('#msg').textContent=CLASSES[sel].n+(rec?'：しんきろく！！ 🎉':'：きろくは こうしんされませんでした（さいこう '+data.b[sel]+'てん）');
   busy=false;renderAll();
 }
 $('#go').onclick=()=>{if(busy)stopReq=true;else run()};
-$('#undo').onclick=()=>{if(busy)return;data.r.pop();save();renderAll()};
-$('#clrCls').onclick=()=>{if(busy)return;if(confirm(CLASSES[sel].n+'の きろくを ぜんぶ けしますか？')){data.r=data.r.filter(x=>x.c!==sel);save();renderAll()}};
+$('#clrCls').onclick=()=>{if(busy)return;if(confirm(CLASSES[sel].n+'の きろくを ぜんぶ けしますか？')){data.b[sel]=0;save();renderAll()}};
 addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){demo=true;e.preventDefault()}});
 addEventListener('keyup',e=>{if(e.code==='Space')demo=false});
 renderAll();
