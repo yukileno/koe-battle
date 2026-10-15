@@ -62,9 +62,9 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
-let gain=9;try{const g=+localStorage.getItem('koebattle.gain');if(localStorage.getItem('koebattle.gain')!==null&&isFinite(g))gain=g}catch(e){}
-const GAIN_MAX=30,ORB_PT=10; // ORB_PT: たま1こ＝10てん
+const SENS_MAX=15,RANGE_DB=30,MARGIN_DB=4,KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
+let sens=7,gateDb=-50;try{const g=localStorage.getItem('koebattle.sens');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
+const ORB_PT=10; // ORB_PT: たま1こ＝10てん
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
 let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -100,20 +100,25 @@ async function initMic(){
   }catch(e){console.warn(e);return false}
 }
 // いまの こえの大きさを 0〜100 に
+function dbNow(){
+  A.an.getFloatTimeDomainData(A.buf);
+  let s=0;for(const v of A.buf)s+=v*v;
+  return 10*Math.log10(s/A.buf.length+1e-12);
+}
+// かんど：レベル1〜15（1つ上がるごとに 1.25ばい）
+const mult=()=>0.25*Math.pow(1.25,sens-1);
 function level(){
   if(demo)return 62+Math.random()*10;
   if(!A.ready)return 0;
-  A.an.getFloatTimeDomainData(A.buf);
-  let s=0;for(const v of A.buf)s+=v*v;
-  const db=10*Math.log10(s/A.buf.length+1e-12);
-  return Math.max(0,Math.min(100,(db+gain-DB_MIN)/(DB_MAX-DB_MIN)*100));
+  // まわりの おとより MARGIN_DB 大きい ぶんだけ ひろう
+  return Math.max(0,Math.min(100,(dbNow()-gateDb)/RANGE_DB*100*mult()));
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let live=0,cur=0,pts=0,orbs=[],orbAcc=0,orbOn=false;
 // ---- かんど ----
-function renderSens(){$('#sv').textContent=gain<=0?'ふつう':'レベル '+Math.round(gain/3)}
-function setGain(d){gain=Math.max(0,Math.min(GAIN_MAX,gain+d));try{localStorage.setItem('koebattle.gain',gain)}catch(e){}renderSens()}
-$('#sm').onclick=()=>setGain(-3);$('#sp').onclick=()=>setGain(3);renderSens();
+function renderSens(){$('#sv').textContent='レベル '+sens+' / '+SENS_MAX}
+function setSens(d){sens=Math.max(1,Math.min(SENS_MAX,sens+d));try{localStorage.setItem('koebattle.sens',sens)}catch(e){}renderSens()}
+$('#sm').onclick=()=>setSens(-1);$('#sp').onclick=()=>setSens(1);renderSens();
 // ---- どうしんえん ----
 const cv=$('#cv'),g=cv.getContext('2d');let W=0,H=0,rings=[],hue=200,acc=0,lastT=performance.now();
 function fit(){const d=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;g.setTransform(d,0,0,d,0,0)}
@@ -159,7 +164,11 @@ async function run(){
   if(busy)return;
   if(!(await initMic())){$('#msg').textContent='マイクが つかえません。ブラウザの マイクの きょかを たしかめてね';return}
   busy=true;$('#go').disabled=true;stopReq=false;
-  for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　じゅんびして…';await sleep(800)}
+  // まわりの おとを はかる（この間は しずかに）
+  let amb=-90;
+  for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　しずかに… まわりの おとを はかっています';
+    for(let k=0;k<24;k++){if(!demo)amb=Math.max(amb,dbNow());await sleep(33)}}
+  if(!demo)gateDb=Math.max(-70,amb)+MARGIN_DB;
   $('#msg').textContent='こえを だして！！ おわったら「ストップ」';
   $('#go').textContent='ストップ';$('#go').style.background='#ff6b8b';$('#go').disabled=false;
   const t0=performance.now();let tp=t0,total=0;orbs=[];orbAcc=0;pts=0;orbOn=true;
