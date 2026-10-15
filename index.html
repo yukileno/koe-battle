@@ -20,8 +20,12 @@ main{width:100%;max-width:980px}
 #stage{text-align:center}
 #big{font-size:clamp(48px,14vw,120px);font-weight:bold;min-height:1.2em;line-height:1.2}
 #msg{color:var(--mut);min-height:1.5em}
-.meter{height:34px;background:#0006;border-radius:17px;overflow:hidden;margin:10px 0}
-#mfill{height:100%;width:0;background:linear-gradient(90deg,#4dc3ff,#5dff8a,#ffd23f,#ff6b8b);transition:width .06s}
+.fx{position:relative;height:clamp(260px,46vh,420px);margin:6px 0;border-radius:16px;overflow:hidden;background:#0b0820}
+#cv{position:absolute;inset:0;width:100%;height:100%}
+#big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-shadow:0 0 18px #000,0 0 6px #000;pointer-events:none}
+.sens{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0}
+.sens button{width:44px;height:44px;border-radius:50%;border:0;font-size:26px;font-weight:bold;background:#0006;color:#fff;cursor:pointer}
+.sens b{min-width:7em}
 .go{border:0;border-radius:40px;padding:16px 44px;font-size:clamp(22px,4vw,32px);font-weight:bold;background:#5dff8a;color:#06331a;cursor:pointer;font-family:inherit}
 .go:disabled{opacity:.4}
 .row{display:flex;align-items:center;gap:10px;margin:10px 0}
@@ -42,8 +46,8 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <main>
  <div class="panel"><div class="classes" id="classes"></div></div>
  <div class="panel" id="stage">
-  <div id="big">🎤</div>
-  <div class="meter"><div id="mfill"></div></div>
+  <div class="fx"><canvas id="cv"></canvas><div id="big">🎤</div></div>
+  <div class="sens">かんど<button id="sm">−</button><b id="sv"></b><button id="sp">＋</button></div>
   <div id="msg">クラスを えらんで「スタート」を おしてね</div>
   <p><button class="go" id="go">スタート</button></p>
   <p class="hint">マイクの きょかを きかれたら「きょか」を おしてね。（かくにん用：スペースキーを おしている間は こえが でていることになります）</p>
@@ -62,7 +66,9 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const KEY='koebattle.v1',DB_MIN=-60,DB_MAX=-15,BONUS=20;
+const KEY='koebattle.v1',DB_MIN=-60,DB_MAX=-15;
+let gain=9;try{const g=+localStorage.getItem('koebattle.gain');if(localStorage.getItem('koebattle.gain')!==null&&isFinite(g))gain=g}catch(e){}
+const GAIN_MAX=30;
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
 let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -112,12 +118,39 @@ function level(){
   A.an.getFloatTimeDomainData(A.buf);
   let s=0;for(const v of A.buf)s+=v*v;
   const db=10*Math.log10(s/A.buf.length+1e-12);
-  return Math.max(0,Math.min(100,(db-DB_MIN)/(DB_MAX-DB_MIN)*100+BONUS));
+  return Math.max(0,Math.min(100,(db+gain-DB_MIN)/(DB_MAX-DB_MIN)*100));
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let live=0;
+let live=0,cur=0;
+// ---- かんど ----
+function renderSens(){$('#sv').textContent=gain<=0?'ふつう':'レベル '+Math.round(gain/3)}
+function setGain(d){gain=Math.max(0,Math.min(GAIN_MAX,gain+d));try{localStorage.setItem('koebattle.gain',gain)}catch(e){}renderSens()}
+$('#sm').onclick=()=>setGain(-3);$('#sp').onclick=()=>setGain(3);renderSens();
+// ---- どうしんえん ----
+const cv=$('#cv'),g=cv.getContext('2d');let W=0,H=0,rings=[],hue=200,acc=0,lastT=performance.now();
+function fit(){const d=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;g.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',fit);fit();
+function draw(now){
+  const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
+  const l=cur/100,cx=W/2,cy=H/2,maxR=Math.hypot(W,H)/2;
+  hue=(hue+dt*(40+l*200))%360;
+  g.globalCompositeOperation='source-over';
+  g.fillStyle='rgba(11,8,32,'+(.25+.3*(1-l))+')';g.fillRect(0,0,W,H);
+  g.globalCompositeOperation='lighter';
+  acc+=dt*(l>.03?4+l*40:0);
+  while(acc>=1){acc-=1;rings.push({r:20+l*60,v:140+l*520,w:3+l*18,h:hue+Math.random()*60,a:.5+l*.5})}
+  for(const o of rings){o.r+=o.v*dt;o.a-=dt*.5*(.6+o.r/maxR)}
+  rings=rings.filter(o=>o.a>0&&o.r<maxR*1.1);
+  for(const o of rings){g.strokeStyle=`hsla(${o.h},100%,50%,${Math.min(1,o.a)})`;g.lineWidth=o.w*.7;g.shadowColor=`hsl(${o.h},100%,60%)`;g.shadowBlur=20;g.beginPath();g.arc(cx,cy,o.r,0,7);g.stroke()}
+  g.shadowBlur=0;
+  const R=30+l*Math.min(W,H)*.32,gr=g.createRadialGradient(cx,cy,0,cx,cy,R);
+  gr.addColorStop(0,`hsla(${hue},100%,85%,.95)`);gr.addColorStop(.5,`hsla(${hue+40},100%,60%,.5)`);gr.addColorStop(1,`hsla(${hue+80},100%,50%,0)`);
+  g.fillStyle=gr;g.beginPath();g.arc(cx,cy,R,0,7);g.fill();
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
 (function loop(){
-  if(!busy){live+=(level()-live)*.3;$('#mfill').style.width=live+'%'}
+  if(!busy){live+=(level()-live)*.3;cur=live}
   requestAnimationFrame(loop);
 })();
 
@@ -130,7 +163,7 @@ async function run(){
   $('#go').textContent='ストップ';$('#go').style.background='#ff6b8b';$('#go').disabled=false;
   const t0=performance.now();let sum=0,cnt=0;
   while(!stopReq){
-    const l=level();sum+=l;cnt++;$('#mfill').style.width=l+'%';
+    const l=level();sum+=l;cnt++;cur=l;
     $('#big').textContent=((performance.now()-t0)/1000).toFixed(1)+'びょう';
     await sleep(33);
   }
