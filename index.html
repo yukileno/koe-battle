@@ -62,9 +62,9 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const SENS_MAX=15,REF_AMP=0.15,GATE_DB=-45, // これより小さい おとは 0てん（絶対のしきい値）
+const SENS_MAX=30,REF_AMP=0.15,GATE_DB=-45, // これより小さい おとは 0てん（絶対のしきい値）
   KEY='koebattle.v3',DB_MIN=-60,DB_MAX=-15;
-let sens=7;try{const g=localStorage.getItem('koebattle.sens');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
+let sens=14;try{const g=localStorage.getItem('koebattle.sens2');if(g!==null&&isFinite(+g))sens=Math.max(1,Math.min(SENS_MAX,+g))}catch(e){}
 const ORB_PT=10; // ORB_PT: たま1こ＝10てん
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
@@ -106,8 +106,8 @@ function dbNow(){
   let s=0;for(const v of A.buf)s+=v*v;
   return 10*Math.log10(s/A.buf.length+1e-12);
 }
-// かんど：レベル1〜15（1つ上がるごとに 1.25ばい）
-const mult=()=>0.25*Math.pow(1.25,sens-1);
+// かんど：レベル1〜30
+const mult=()=>0.25*Math.pow(1.25,(sens-1)*14/29);
 function level(){
   if(demo)return 62+Math.random()*10;
   if(!A.ready)return 0;
@@ -119,7 +119,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let live=0,cur=0,pts=0,orbs=[],orbAcc=0,orbOn=false;
 // ---- かんど ----
 function renderSens(){$('#sv').textContent='レベル '+sens+' / '+SENS_MAX}
-function setSens(d){sens=Math.max(1,Math.min(SENS_MAX,sens+d));try{localStorage.setItem('koebattle.sens',sens)}catch(e){}renderSens()}
+function setSens(d){sens=Math.max(1,Math.min(SENS_MAX,sens+d));try{localStorage.setItem('koebattle.sens2',sens)}catch(e){}renderSens()}
 $('#sm').onclick=()=>setSens(-1);$('#sp').onclick=()=>setSens(1);renderSens();
 // ---- どうしんえん ----
 const cv=$('#cv'),g=cv.getContext('2d');let W=0,H=0,rings=[],hue=200,acc=0,lastT=performance.now();
@@ -162,8 +162,10 @@ requestAnimationFrame(draw);
   requestAnimationFrame(loop);
 })();
 
+const startSnd=new Audio('B0000003.WAV');
 async function run(){
   if(busy)return;
+  try{startSnd.currentTime=0;startSnd.play().catch(()=>{})}catch(e){}
   if(!(await initMic())){$('#msg').textContent='マイクが つかえません。ブラウザの マイクの きょかを たしかめてね';return}
   busy=true;$('#go').disabled=true;stopReq=false;
   for(let n=3;n>=1;n--){$('#big').textContent=n;$('#msg').textContent=CLASSES[sel].n+'　じゅんびして…';await sleep(800)}
@@ -183,7 +185,7 @@ async function run(){
   $('#msg').textContent=CLASSES[sel].n+(rec?'：しんきろく！！ 🎉':'：きろくは こうしんされませんでした（さいこう '+data.b[sel]+'てん）');
   busy=false;renderAll();
 }
-$('#go').onclick=()=>{if(busy)stopReq=true;else run()};
+$('#go').onclick=()=>{if(busy){stopReq=true;try{startSnd.pause()}catch(e){}}else run()};
 $('#clrCls').onclick=()=>{if(busy)return;if(confirm(CLASSES[sel].n+'の きろくを ぜんぶ けしますか？')){data.b[sel]=0;save();renderAll()}};
 addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){demo=true;e.preventDefault()}});
 addEventListener('keyup',e=>{if(e.code==='Space')demo=false});
