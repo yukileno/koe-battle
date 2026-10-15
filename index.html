@@ -62,7 +62,7 @@ button.sm{background:#0006;color:#fff;border:0;border-radius:8px;padding:4px 10p
 <script>
 const CLASSES=[{n:'5年1組',c:'#ff6b8b',k:'k0'},{n:'5年2組',c:'#4dc3ff',k:'k1'},{n:'6年',c:'#ffd23f',k:'k2'}];
 let stopReq=false;
-const KEY='koebattle.v1',DB_MIN=-60,DB_MAX=-15;
+const KEY='koebattle.v1',DB_MIN=-60,DB_MAX=-15,BONUS=20;
 const $=s=>document.querySelector(s);
 let sel=0,busy=false,demo=false;
 let data;try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -112,7 +112,7 @@ function level(){
   A.an.getFloatTimeDomainData(A.buf);
   let s=0;for(const v of A.buf)s+=v*v;
   const db=10*Math.log10(s/A.buf.length+1e-12);
-  return Math.max(0,Math.min(100,(db-DB_MIN)/(DB_MAX-DB_MIN)*100));
+  return Math.max(0,Math.min(100,(db-DB_MIN)/(DB_MAX-DB_MIN)*100+BONUS));
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let live=0;
